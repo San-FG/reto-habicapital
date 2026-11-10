@@ -48,6 +48,19 @@ class Transferencia(BaseModel):
     concepto: str | None = None
 
 
+class NuevoCompromiso(BaseModel):
+    pagador_id: int
+    beneficiario_id: int
+    monto: StrictInt
+    concepto: str
+    vence_el: str
+
+
+class Actor(BaseModel):
+    # Identidad simulada: en este reto no hay autenticación (ver servicio.py).
+    actor_id: int
+
+
 @app.post("/cuentas", status_code=201)
 def crear_cuenta(datos: NuevaCuenta, con=Depends(obtener_conexion)):
     return servicio.crear_cuenta(con, datos.nombre)
@@ -79,3 +92,37 @@ def historial(cuenta_id: int, con=Depends(obtener_conexion)):
 @app.get("/auditoria")
 def auditoria(con=Depends(obtener_conexion)):
     return servicio.auditar(con)
+
+
+@app.post("/compromisos", status_code=201)
+def crear_compromiso(datos: NuevoCompromiso, con=Depends(obtener_conexion)):
+    return servicio.crear_compromiso(con, datos.pagador_id, datos.beneficiario_id,
+                                     datos.monto, datos.concepto, datos.vence_el)
+
+
+@app.get("/compromisos/{compromiso_id}")
+def consultar_compromiso(compromiso_id: int, con=Depends(obtener_conexion)):
+    return servicio.consultar_compromiso(con, compromiso_id)
+
+
+@app.get("/cuentas/{cuenta_id}/compromisos")
+def listar_compromisos(cuenta_id: int, con=Depends(obtener_conexion)):
+    return servicio.listar_compromisos(con, cuenta_id)
+
+
+@app.post("/compromisos/{compromiso_id}/respaldo")
+def respaldar_compromiso(compromiso_id: int, datos: Actor, idempotency_key: str = Header(),
+                         con=Depends(obtener_conexion)):
+    return servicio.respaldar_compromiso(con, compromiso_id, datos.actor_id, idempotency_key)
+
+
+@app.post("/compromisos/{compromiso_id}/liberacion")
+def liberar_compromiso(compromiso_id: int, datos: Actor, idempotency_key: str = Header(),
+                       con=Depends(obtener_conexion)):
+    return servicio.liberar_compromiso(con, compromiso_id, datos.actor_id, idempotency_key)
+
+
+@app.post("/compromisos/{compromiso_id}/cancelacion")
+def cancelar_compromiso(compromiso_id: int, datos: Actor, idempotency_key: str = Header(),
+                        con=Depends(obtener_conexion)):
+    return servicio.cancelar_compromiso(con, compromiso_id, datos.actor_id, idempotency_key)
