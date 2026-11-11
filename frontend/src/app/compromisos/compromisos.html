@@ -1,0 +1,104 @@
+<section class="tarjeta">
+  <h2>Compromisos de pago</h2>
+
+  <!-- Crear: la cuenta seleccionada es quien paga. -->
+  @if (otras().length === 0) {
+    <p class="vacio">Crea otra cuenta para poder comprometerte a pagarle.</p>
+  } @else {
+    <form class="formulario en-fila" (ngSubmit)="crear()">
+      <label>
+        <span>Le voy a pagar a</span>
+        <select name="beneficiario" [(ngModel)]="beneficiario">
+          <option [ngValue]="null" disabled>Elige una cuenta</option>
+          @for (c of otras(); track c.id) {
+            <option [ngValue]="c.id">{{ c.nombre }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span>Monto</span>
+        <app-campo-monto [(valor)]="monto" />
+      </label>
+      <label>
+        <span>Concepto</span>
+        <input name="concepto" autocomplete="off" [(ngModel)]="concepto" />
+      </label>
+      <label>
+        <span>Vence el</span>
+        <input type="date" name="venceEl" [(ngModel)]="venceEl" />
+      </label>
+      <button type="submit" [disabled]="creando()">
+        {{ creando() ? 'Creando…' : 'Crear compromiso' }}
+      </button>
+    </form>
+  }
+  @if (errorCrear()) {
+    <p class="mensaje error" role="alert">{{ errorCrear() }}</p>
+  }
+  @if (avisoCrear()) {
+    <p class="mensaje exito" role="status">{{ avisoCrear() }}</p>
+  }
+
+  <!-- Lista -->
+  @if (errorAccion()) {
+    <p class="mensaje error" role="alert">{{ errorAccion() }}</p>
+  }
+  @if (compromisos().length === 0) {
+    <p class="vacio">Esta cuenta no tiene compromisos.</p>
+  } @else {
+    <div class="con-desborde">
+      <table>
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Contraparte</th>
+            <th class="numero">Monto</th>
+            <th>Vence</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of compromisos(); track c.id) {
+            <tr>
+              <td>{{ c.concepto }}</td>
+              <td>
+                @if (soyPagador(c)) {
+                  Le pago a {{ nombre(c.beneficiario_id) }}
+                } @else {
+                  Me paga {{ nombre(c.pagador_id) }}
+                }
+              </td>
+              <td class="numero">{{ c.monto | pesos }}</td>
+              <!-- vence_el se muestra tal cual: pasarlo por Date podría correrlo un día por la zona horaria. -->
+              <td>{{ c.vence_el }}</td>
+              <td>
+                <!-- La clase sale del estado: .pendiente, .respaldado, .cumplido o .cancelado -->
+                <span [class]="'estado ' + c.estado.toLowerCase()">{{ c.estado }}</span>
+                @if (c.estado === 'RESPALDADO') {
+                  <p class="custodia">
+                    Plata en custodia: ya salió de {{ nombre(c.pagador_id) }} y todavía no le llega a
+                    {{ nombre(c.beneficiario_id) }}.
+                  </p>
+                }
+              </td>
+              <td class="acciones">
+                @if (puedeRespaldar(c)) {
+                  <button type="button" [disabled]="ocupado()" (click)="respaldar(c)">Respaldar</button>
+                }
+                @if (puedeLiberar(c)) {
+                  <button type="button" [disabled]="ocupado()" (click)="liberar(c)">Liberar</button>
+                }
+                @if (puedeCancelar(c)) {
+                  <button type="button" class="secundario" [disabled]="ocupado()" (click)="cancelar(c)">
+                    Cancelar
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

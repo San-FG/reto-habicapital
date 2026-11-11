@@ -1,0 +1,34 @@
+<section class="tarjeta">
+  <h2>Historial de movimientos</h2>
+
+  @if (movimientos().length === 0) {
+    <p class="vacio">Esta cuenta todavía no tiene movimientos.</p>
+  } @else {
+    <div class="con-desborde">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Contraparte</th>
+            <th>Concepto</th>
+            <th class="numero">Monto</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of movimientos(); track m.id) {
+            <tr>
+              <td>{{ m.creado_en | date: 'yyyy-MM-dd HH:mm' }}</td>
+              <td>{{ tipo(m) }}</td>
+              <td>{{ contraparte(m) }}</td>
+              <td>{{ m.concepto ?? '—' }}</td>
+              <td class="numero" [class.entrada]="entro(m)" [class.salida]="!entro(m)">
+                {{ entro(m) ? '+' : '−' }} {{ m.monto | pesos }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

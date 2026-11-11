@@ -2,6 +2,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StrictInt
 
@@ -16,6 +17,16 @@ async def ciclo_de_vida(app: FastAPI):
 
 
 app = FastAPI(title="Billetera entre personas", lifespan=ciclo_de_vida)
+
+# El frontend (Angular en localhost:4200) vive en otro origen que la API, y el
+# navegador bloquea esas llamadas salvo que la API las permita. Solo se permite
+# ese origen: cualquier otra página web queda por fuera.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Idempotency-Key"],
+)
 
 
 def obtener_conexion():
@@ -64,6 +75,11 @@ class Actor(BaseModel):
 @app.post("/cuentas", status_code=201)
 def crear_cuenta(datos: NuevaCuenta, con=Depends(obtener_conexion)):
     return servicio.crear_cuenta(con, datos.nombre)
+
+
+@app.get("/cuentas")
+def listar_cuentas(con=Depends(obtener_conexion)):
+    return servicio.listar_cuentas(con)
 
 
 @app.get("/cuentas/{cuenta_id}")

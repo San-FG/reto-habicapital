@@ -1,0 +1,22 @@
+<section class="tarjeta">
+  <h2>Saldo de {{ yo().nombre }}</h2>
+  <!-- El saldo se muestra tal como lo devolvió el backend; aquí no se calcula. -->
+  <p class="saldo">{{ yo().saldo | pesos }}</p>
+
+  <form class="formulario" (ngSubmit)="cargar()">
+    <label>
+      <span>Cargar saldo (simulado)</span>
+      <app-campo-monto [(valor)]="monto" />
+    </label>
+    <button type="submit" [disabled]="enviando()">
+      {{ enviando() ? 'Cargando…' : 'Cargar' }}
+    </button>
+  </form>
+
+  @if (error()) {
+    <p class="mensaje error" role="alert">{{ error() }}</p>
+  }
+  @if (aviso()) {
+    <p class="mensaje exito" role="status">{{ aviso() }}</p>
+  }
+</section>

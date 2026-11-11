@@ -1,0 +1,23 @@
+<footer class="auditoria">
+  @if (auditoria(); as a) {
+    <p class="veredicto" [class.cuadra]="a.ok" [class.descuadre]="!a.ok" role="status">
+      {{ a.ok ? 'La plata cuadra' : 'DESCUADRE' }}
+    </p>
+    <dl>
+      <div>
+        <dt>Total en saldos</dt>
+        <dd>{{ a.total_saldos | pesos }}</dd>
+      </div>
+      <div>
+        <dt>Total cargado</dt>
+        <dd>{{ a.total_cargas | pesos }}</dd>
+      </div>
+      <div>
+        <dt>Plata en custodia</dt>
+        <dd>{{ a.saldo_custodia | pesos }}</dd>
+      </div>
+    </dl>
+  } @else {
+    <p class="vacio">Auditoría no disponible.</p>
+  }
+</footer>

@@ -76,7 +76,12 @@ def conectar(ruta: str | None = None) -> sqlite3.Connection:
     # isolation_level=None: nosotros decidimos cuándo empieza y termina
     # cada transacción (BEGIN / COMMIT / ROLLBACK), Python no lo hace solo.
     # timeout=10: si otro está escribiendo, esperamos el turno hasta 10 s.
-    con = sqlite3.connect(ruta or ruta_bd(), timeout=10, isolation_level=None)
+    # check_same_thread=False: FastAPI abre la conexión en un hilo y atiende la
+    # petición en otro, y sqlite3 por defecto se niega a eso (con peticiones
+    # simultáneas respondía 500). No se comparte nada: cada petición sigue
+    # teniendo su propia conexión y solo un hilo la usa a la vez.
+    con = sqlite3.connect(ruta or ruta_bd(), timeout=10, isolation_level=None,
+                          check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     return con

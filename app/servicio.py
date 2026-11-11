@@ -172,6 +172,12 @@ def consultar_cuenta(con, cuenta_id: int) -> dict:
     return dict(_exigir_cuenta(con, cuenta_id))
 
 
+def listar_cuentas(con) -> list[dict]:
+    # Solo cuentas de personas: la custodia es interna, nadie la elige ni le paga.
+    filas = con.execute("SELECT * FROM cuentas WHERE es_sistema = 0 ORDER BY id").fetchall()
+    return [dict(f) for f in filas]
+
+
 def historial(con, cuenta_id: int) -> list[dict]:
     _exigir_cuenta(con, cuenta_id)
     filas = con.execute(

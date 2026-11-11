@@ -1,4 +1,6 @@
 """Prueba de punta a punta por HTTP."""
+import threading
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -85,3 +87,68 @@ def test_flujo_de_compromiso(cliente):
     auditoria = cliente.get("/auditoria").json()
     assert auditoria["ok"] is True
     assert auditoria["saldo_custodia"] == auditoria["total_respaldado"] == 0
+
+
+def test_listar_cuentas_ordenadas_y_sin_la_custodia(cliente):
+    assert cliente.get("/cuentas").json() == []  # la custodia existe, pero no se lista
+
+    luis = cliente.post("/cuentas", json={"nombre": "Luis"}).json()["id"]
+    ana = cliente.post("/cuentas", json={"nombre": "Ana"}).json()["id"]
+    cliente.post(f"/cuentas/{ana}/cargas", json={"monto": 50000},
+                 headers={"Idempotency-Key": "carga-1"})
+
+    r = cliente.get("/cuentas")
+    assert r.status_code == 200
+    cuentas = r.json()
+    assert [c["id"] for c in cuentas] == [luis, ana]  # por id, no por nombre
+    assert [c["nombre"] for c in cuentas] == ["Luis", "Ana"]
+    assert [c["saldo"] for c in cuentas] == [0, 50000]
+    assert all(c["es_sistema"] == 0 for c in cuentas)
+
+
+def test_cors_solo_permite_el_frontend_local(cliente):
+    permitido = cliente.get("/cuentas", headers={"Origin": "http://localhost:4200"})
+    assert permitido.headers["access-control-allow-origin"] == "http://localhost:4200"
+
+    ajeno = cliente.get("/cuentas", headers={"Origin": "http://otro-sitio.com"})
+    assert "access-control-allow-origin" not in ajeno.headers
+
+    # El navegador pregunta antes de mandar un POST con Idempotency-Key.
+    pregunta = cliente.options("/transferencias", headers={
+        "Origin": "http://localhost:4200",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type,idempotency-key",
+    })
+    assert pregunta.status_code == 200
+    assert "idempotency-key" in pregunta.headers["access-control-allow-headers"].lower()
+
+
+def test_veinte_transferencias_simultaneas_por_http(cliente):
+    """Un servidor real atiende peticiones a la vez, cada una en sus propios hilos."""
+    ana = cliente.post("/cuentas", json={"nombre": "Ana"}).json()["id"]
+    luis = cliente.post("/cuentas", json={"nombre": "Luis"}).json()["id"]
+    cliente.post(f"/cuentas/{ana}/cargas", json={"monto": 30000},
+                 headers={"Idempotency-Key": "carga-1"})
+
+    codigos = []
+    salida = threading.Barrier(20)
+
+    def intentar(i):
+        salida.wait()  # todas arrancan al mismo tiempo
+        try:
+            r = cliente.post("/transferencias",
+                             json={"origen": ana, "destino": luis, "monto": 30000},
+                             headers={"Idempotency-Key": f"t-{i}"})
+            codigos.append(r.status_code)
+        except Exception as error:  # un 500 del servidor llega aquí como excepción
+            codigos.append(type(error).__name__)
+
+    hilos = [threading.Thread(target=intentar, args=(i,)) for i in range(20)]
+    [h.start() for h in hilos]
+    [h.join() for h in hilos]
+
+    # Exactamente una pasa; las otras 19 se rechazan por saldo, no por un error interno.
+    assert sorted(codigos, key=str) == [201] + [409] * 19
+    assert cliente.get(f"/cuentas/{ana}").json()["saldo"] == 0
+    assert cliente.get(f"/cuentas/{luis}").json()["saldo"] == 30000
+    assert cliente.get("/auditoria").json()["ok"] is True

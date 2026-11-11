@@ -1,0 +1,71 @@
+<header class="encabezado">
+  <div class="marca">
+    <h1>Billetera</h1>
+    <p>Plata entre personas, sin perder un peso</p>
+  </div>
+
+  <div class="identidad">
+    <!-- Identidad simulada: no hay login (ver el comentario en app.ts). -->
+    <label class="en-linea">
+      <span>Soy:</span>
+      <select
+        [ngModel]="yoId()"
+        (ngModelChange)="elegir($event)"
+        [disabled]="cuentas().length === 0"
+      >
+        @if (cuentas().length === 0) {
+          <option [ngValue]="null">Sin cuentas todavía</option>
+        }
+        @for (c of cuentas(); track c.id) {
+          <option [ngValue]="c.id">{{ c.nombre }}</option>
+        }
+      </select>
+    </label>
+
+    <form class="en-linea" (ngSubmit)="crearCuenta()">
+      <input
+        name="nombre"
+        aria-label="Nombre de la cuenta nueva"
+        placeholder="Nombre de la cuenta nueva"
+        autocomplete="off"
+        [(ngModel)]="nombreNuevo"
+      />
+      <button type="submit" class="secundario" [disabled]="creando()">
+        {{ creando() ? 'Creando…' : 'Crear cuenta' }}
+      </button>
+    </form>
+    @if (errorCrear()) {
+      <p class="mensaje error" role="alert">{{ errorCrear() }}</p>
+    }
+  </div>
+</header>
+
+<main>
+  @if (error()) {
+    <p class="mensaje error" role="alert">{{ error() }}</p>
+  }
+
+  <!-- Los hijos solo existen cuando hay una cuenta cargada. Al cambiar de
+       identidad "yo" pasa por null, así que se destruyen y se crean limpios. -->
+  @if (yo(); as cuenta) {
+    <div class="dos-columnas">
+      <app-tarjeta-saldo [yo]="cuenta" (cambio)="recargar()" />
+      <app-transferencia [yo]="cuenta" [cuentas]="cuentas()" (cambio)="recargar()" />
+    </div>
+    <app-compromisos
+      [yo]="cuenta"
+      [cuentas]="cuentas()"
+      [compromisos]="compromisos()"
+      (cambio)="recargar()"
+    />
+    <app-historial [yo]="cuenta" [cuentas]="cuentas()" [movimientos]="movimientos()" />
+  } @else if (error()) {
+    <!-- El error ya está arriba; no hay nada más que mostrar. -->
+  } @else if (!cargado() || yoId() !== null) {
+    <p class="vacio">Cargando…</p>
+  } @else {
+    <p class="vacio">Todavía no hay cuentas. Crea la primera arriba para empezar.</p>
+  }
+</main>
+
+<app-pie-auditoria [auditoria]="auditoria()" />
