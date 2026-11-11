@@ -153,13 +153,6 @@ app-root {
   white-space: nowrap;
 }
 
-.auditoria {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
 .sello-auditoria {
   display: inline-flex;
   height: 32px;
@@ -170,6 +163,7 @@ app-root {
   font-size: 13px;
   font-weight: 600;
   line-height: 16px;
+  white-space: nowrap;
 }
 
 .sello-auditoria.cuadra {
@@ -193,13 +187,6 @@ app-root {
   flex: 0 0 auto;
   border-radius: 999px;
   background: currentColor;
-}
-
-.datos-auditoria {
-  color: var(--tinta-suave);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  line-height: 16px;
 }
 
 .identidad,
@@ -912,14 +899,11 @@ button:disabled {
 
 /* ---------- Adaptación de ancho ---------- */
 
-@media (max-width: 1099px) {
-  .lema,
-  .datos-auditoria {
+@media (max-width: 899px) {
+  .lema {
     display: none;
   }
-}
 
-@media (max-width: 899px) {
   .tablero {
     grid-template-columns: minmax(0, 1fr);
   }

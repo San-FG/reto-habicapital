@@ -1,25 +1,18 @@
 @if (auditoria(); as a) {
-  <div class="auditoria">
-    <span
-      class="sello-auditoria"
-      [class.cuadra]="a.ok"
-      [class.descuadre]="!a.ok"
-      title="En saldos {{ a.total_saldos | pesos }} · Cargado {{
-        a.total_cargas | pesos
-      }} · En custodia {{ a.saldo_custodia | pesos }}"
-      role="status"
-    >
-      <span class="punto-auditoria" aria-hidden="true"></span>
-      {{ a.ok ? 'La plata cuadra' : 'DESCUADRE' }}
-    </span>
-    <span class="datos-auditoria">
-      En saldos {{ a.total_saldos | pesos }}
-      <span aria-hidden="true"> · </span>
-      Cargado {{ a.total_cargas | pesos }}
-      <span aria-hidden="true"> · </span>
-      En custodia {{ a.saldo_custodia | pesos }}
-    </span>
-  </div>
+  <!-- Los totales de TODO el sistema no se muestran: una persona no debe ver la
+       plata de las demás cuentas. Quedan solo en el title del sello. -->
+  <span
+    class="sello-auditoria"
+    [class.cuadra]="a.ok"
+    [class.descuadre]="!a.ok"
+    title="En saldos {{ a.total_saldos | pesos }} · Cargado {{
+      a.total_cargas | pesos
+    }} · En custodia {{ a.saldo_custodia | pesos }}"
+    role="status"
+  >
+    <span class="punto-auditoria" aria-hidden="true"></span>
+    {{ a.ok ? 'La plata cuadra' : 'DESCUADRE' }}
+  </span>
 } @else {
   <span class="sello-auditoria auditoria-cargando" role="status">
     <span class="punto-auditoria" aria-hidden="true"></span>

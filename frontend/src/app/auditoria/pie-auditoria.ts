@@ -4,7 +4,7 @@ import { PesosPipe } from '../pesos-pipe';
 import { Auditoria } from '../tipos';
 
 /**
- * Pie de página con el resultado de GET /auditoria.
+ * Sello de la barra superior con el resultado de GET /auditoria.
  * El veredicto ("ok") lo da el backend; aquí solo se muestra.
  */
 @Component({
