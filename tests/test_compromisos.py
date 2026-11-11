@@ -2,6 +2,7 @@
 import random
 import threading
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -57,6 +58,13 @@ def saldos(con, ana, luis):
 
 def estado(con, compromiso_id):
     return servicio.consultar_compromiso(con, compromiso_id)["estado"]
+
+
+def adelantar_reloj(monkeypatch, con, compromiso_id, **tiempo):
+    """Simula que ya pasó ese tiempo desde el respaldo: _ahora() devuelve respaldado_en + tiempo."""
+    respaldado_en = servicio.consultar_compromiso(con, compromiso_id)["respaldado_en"]
+    futuro = datetime.fromisoformat(respaldado_en) + timedelta(**tiempo)
+    monkeypatch.setattr(servicio, "_ahora", lambda: futuro.isoformat(timespec="seconds"))
 
 
 # ---------- Ciclo de vida ----------
@@ -175,13 +183,22 @@ def test_solo_el_pagador_respalda_y_libera(con, ana_y_luis, compromiso):
     assert saldos(con, ana, luis) == (30_000, 10_000, 20_000)
 
 
-def test_el_pagador_no_puede_cancelar_un_compromiso_respaldado(con, ana_y_luis, compromiso):
+def test_antes_de_24_horas_el_pagador_no_puede_cancelar_un_respaldado(
+        con, ana_y_luis, compromiso, monkeypatch):
     ana, luis = ana_y_luis
     servicio.respaldar_compromiso(con, compromiso, ana, clave())
     with pytest.raises(servicio.NoAutorizado):
         servicio.cancelar_compromiso(con, compromiso, ana, clave())
     assert estado(con, compromiso) == "RESPALDADO"
     assert saldos(con, ana, luis) == (30_000, 10_000, 20_000)
+
+    # Tampoco un segundo antes de cumplirse el plazo, y el error dice desde cuándo.
+    adelantar_reloj(monkeypatch, con, compromiso, hours=23, minutes=59, seconds=59)
+    with pytest.raises(servicio.NoAutorizado, match="podrá recuperarla desde"):
+        servicio.cancelar_compromiso(con, compromiso, ana, clave())
+    assert estado(con, compromiso) == "RESPALDADO"
+    assert saldos(con, ana, luis) == (30_000, 10_000, 20_000)
+    assert servicio.auditar(con)["ok"]
 
 
 def test_un_tercero_no_puede_hacer_nada(con, ana_y_luis, compromiso):
@@ -195,6 +212,123 @@ def test_un_tercero_no_puede_hacer_nada(con, ana_y_luis, compromiso):
         with pytest.raises(servicio.NoAutorizado):
             accion(con, compromiso, intruso, clave())
     assert saldos(con, ana, luis) == (30_000, 10_000, 20_000)
+
+
+# ---------- Plazo de la custodia: 24 horas ----------
+
+def test_despues_de_24_horas_el_pagador_recupera_la_plata(con, ana_y_luis, compromiso, monkeypatch):
+    ana, luis = ana_y_luis
+    servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    adelantar_reloj(monkeypatch, con, compromiso, hours=25)
+
+    c = servicio.cancelar_compromiso(con, compromiso, ana, clave())
+    assert c["estado"] == "CANCELADO" and c["cerrado_en"]
+    # Monto exacto de vuelta, custodia en cero y el beneficiario no recibió nada.
+    assert saldos(con, ana, luis) == (50_000, 10_000, 0)
+    mov = servicio.historial(con, ana)[0]
+    assert (mov["tipo"], mov["monto"], mov["compromiso_id"]) == ("DEVOLUCION", 20_000, compromiso)
+    auditoria = servicio.auditar(con)
+    assert auditoria["ok"]
+    assert auditoria["saldo_custodia"] == auditoria["total_respaldado"] == 0
+
+
+def test_exactamente_a_las_24_horas_el_pagador_ya_puede_recuperar(
+        con, ana_y_luis, compromiso, monkeypatch):
+    ana, luis = ana_y_luis
+    servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    adelantar_reloj(monkeypatch, con, compromiso, hours=24)
+
+    servicio.cancelar_compromiso(con, compromiso, ana, clave())
+    assert estado(con, compromiso) == "CANCELADO"
+    assert saldos(con, ana, luis) == (50_000, 10_000, 0)
+    assert servicio.auditar(con)["ok"]
+
+
+@pytest.mark.parametrize("horas", [1, 25])
+def test_el_beneficiario_cancela_antes_y_despues_del_plazo(
+        con, ana_y_luis, compromiso, monkeypatch, horas):
+    ana, luis = ana_y_luis
+    servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    adelantar_reloj(monkeypatch, con, compromiso, hours=horas)
+
+    servicio.cancelar_compromiso(con, compromiso, luis, clave())
+    assert estado(con, compromiso) == "CANCELADO"
+    assert saldos(con, ana, luis) == (50_000, 10_000, 0)
+    assert servicio.auditar(con)["ok"]
+
+
+def test_despues_del_plazo_el_pagador_todavia_puede_liberar(con, ana_y_luis, compromiso, monkeypatch):
+    ana, luis = ana_y_luis
+    servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    adelantar_reloj(monkeypatch, con, compromiso, hours=25)
+
+    c = servicio.liberar_compromiso(con, compromiso, ana, clave())
+    assert c["estado"] == "CUMPLIDO"
+    assert saldos(con, ana, luis) == (30_000, 30_000, 0)  # el beneficiario recibe el monto exacto
+    assert servicio.auditar(con)["ok"]
+
+
+def test_despues_de_recuperar_no_se_puede_liberar(con, ana_y_luis, compromiso, monkeypatch):
+    ana, luis = ana_y_luis
+    servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    adelantar_reloj(monkeypatch, con, compromiso, hours=25)
+    servicio.cancelar_compromiso(con, compromiso, ana, clave())
+
+    with pytest.raises(servicio.EstadoInvalido):
+        servicio.liberar_compromiso(con, compromiso, ana, clave())
+    assert estado(con, compromiso) == "CANCELADO"
+    assert saldos(con, ana, luis) == (50_000, 10_000, 0)
+    assert servicio.auditar(con)["ok"]
+
+
+def test_recuperar_dos_veces_con_la_misma_clave_devuelve_la_plata_una_sola_vez(
+        con, ana_y_luis, compromiso, monkeypatch):
+    ana, luis = ana_y_luis
+    servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    adelantar_reloj(monkeypatch, con, compromiso, hours=25)
+
+    k = clave()
+    primero = servicio.cancelar_compromiso(con, compromiso, ana, k)
+    segundo = servicio.cancelar_compromiso(con, compromiso, ana, k)
+    assert primero == segundo
+    assert saldos(con, ana, luis) == (50_000, 10_000, 0)
+    devoluciones = [m for m in servicio.historial(con, ana) if m["tipo"] == "DEVOLUCION"]
+    assert len(devoluciones) == 1
+    # Con otra clave ya no hay nada que devolver.
+    with pytest.raises(servicio.EstadoInvalido):
+        servicio.cancelar_compromiso(con, compromiso, ana, clave())
+    assert saldos(con, ana, luis) == (50_000, 10_000, 0)
+    assert servicio.auditar(con)["ok"]
+
+
+def test_custodia_vence_en_es_respaldado_en_mas_24_horas(con, ana_y_luis, compromiso):
+    ana, _ = ana_y_luis
+    assert servicio.consultar_compromiso(con, compromiso)["custodia_vence_en"] is None  # PENDIENTE
+
+    c = servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    assert c["estado"] == "RESPALDADO"
+    respaldado_en = datetime.fromisoformat(c["respaldado_en"])
+    vence = datetime.fromisoformat(c["custodia_vence_en"])
+    assert vence - respaldado_en == timedelta(hours=24)
+    assert vence.utcoffset() == timedelta(0)  # en UTC, como _ahora()
+    assert servicio.PLAZO_CUSTODIA_HORAS == 24
+    # Consultar y listar devuelven el mismo campo, y consultar no escribe nada.
+    assert servicio.consultar_compromiso(con, compromiso) == c
+    assert servicio.listar_compromisos(con, ana)[0]["custodia_vence_en"] == c["custodia_vence_en"]
+
+
+def test_el_plazo_no_devuelve_la_plata_solo(con, ana_y_luis, compromiso, monkeypatch):
+    """Pasado el plazo nada se mueve hasta que el pagador lo pida."""
+    ana, luis = ana_y_luis
+    servicio.respaldar_compromiso(con, compromiso, ana, clave())
+    adelantar_reloj(monkeypatch, con, compromiso, hours=72)
+
+    servicio.consultar_compromiso(con, compromiso)
+    servicio.listar_compromisos(con, ana)
+    servicio.auditar(con)
+    assert estado(con, compromiso) == "RESPALDADO"
+    assert saldos(con, ana, luis) == (30_000, 10_000, 20_000)
+    assert servicio.auditar(con)["ok"]
 
 
 # ---------- Transiciones inválidas ----------

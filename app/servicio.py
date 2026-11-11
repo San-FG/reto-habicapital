@@ -1,6 +1,6 @@
 """Reglas de negocio de la billetera. Aquí vive todo lo que toca plata."""
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from app.db import transaccion
 
@@ -195,6 +195,34 @@ def historial(con, cuenta_id: int) -> list[dict]:
 # quien llama dice quién es y le creemos. En producción el actor saldría de
 # una sesión o un token verificado, nunca del cuerpo de la petición.
 
+# La custodia tiene un plazo, contado desde respaldado_en. Mientras corre, solo
+# el beneficiario puede cancelar; cumplido, el pagador TAMBIÉN puede cancelar y
+# recuperar su plata, para que no quede congelada si nadie actúa.
+# La devolución NO es automática: no hay procesos en segundo plano ni se
+# escribe nada al consultar. La pide el pagador con cancelar_compromiso().
+# El porqué: aquí no se mueve plata sin que alguien lo pida.
+PLAZO_CUSTODIA_HORAS = 24
+
+
+def _limite_custodia(respaldado_en: str) -> str:
+    """Desde cuándo el pagador puede recuperar la plata: respaldado_en + el plazo.
+
+    En UTC y con el mismo formato ISO que _ahora().
+    """
+    limite = datetime.fromisoformat(respaldado_en) + timedelta(hours=PLAZO_CUSTODIA_HORAS)
+    return limite.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _exigir_plazo_cumplido(compromiso: sqlite3.Row) -> None:
+    limite = datetime.fromisoformat(_limite_custodia(compromiso["respaldado_en"]))
+    # La hora siempre se lee con _ahora(): así las pruebas pueden simular el tiempo.
+    if datetime.fromisoformat(_ahora()) < limite:
+        raise NoAutorizado(
+            f"la plata sigue en custodia: el pagador podrá recuperarla desde el "
+            f"{limite:%Y-%m-%d %H:%M} UTC ({PLAZO_CUSTODIA_HORAS} horas después del respaldo)"
+        )
+
+
 def _validar_fecha(vence_el) -> None:
     # fromisoformat acepta variantes como '20270115'; comparar con isoformat()
     # deja pasar únicamente YYYY-MM-DD.
@@ -210,6 +238,9 @@ def _publico(fila: sqlite3.Row) -> dict:
     # La clave de idempotencia es de quien canceló; la otra parte no tiene por qué verla.
     compromiso = dict(fila)
     compromiso.pop("clave_cancelacion")
+    # Campo calculado, no una columna: sale de respaldado_en y no puede descuadrarse.
+    respaldado_en = compromiso["respaldado_en"]
+    compromiso["custodia_vence_en"] = _limite_custodia(respaldado_en) if respaldado_en else None
     return compromiso
 
 
@@ -321,9 +352,11 @@ def cancelar_compromiso(con, compromiso_id: int, actor_id: int, clave: str) -> d
             return _publico(c)
         _accion_repetida(con, clave, "DEVOLUCION", compromiso_id)  # clave de otra operación
         if c["estado"] == "RESPALDADO":
-            # Con la plata ya retenida, el pagador no puede arrepentirse solo:
-            # únicamente el beneficiario renuncia a ella.
-            _exigir_actor(actor_id, [c["beneficiario_id"]], "cancelar")
+            # Con la plata ya retenida, el pagador no puede arrepentirse solo
+            # mientras corre el plazo: únicamente el beneficiario renuncia a ella.
+            # Cumplido el plazo, el pagador también puede pedirla de vuelta.
+            if actor_id == c["pagador_id"]:
+                _exigir_plazo_cumplido(c)
             _mover(con, "DEVOLUCION", _id_custodia(con), c["pagador_id"], c["monto"],
                    c["concepto"], clave, compromiso_id)
         else:

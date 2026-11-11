@@ -159,6 +159,9 @@
           </div>
 
           <p class="texto-estado">{{ textoEstado(c) }}</p>
+          @if (c.estado === 'RESPALDADO') {
+            <p class="nota nota-plazo">{{ textoPlazo(c) }}</p>
+          }
 
           @if (puedeRespaldar(c) || puedeLiberar(c) || puedeCancelar(c)) {
             <div class="acciones-compromiso">
@@ -178,15 +181,24 @@
                   }}
                 </button>
               }
-              @if (puedeCancelar(c)) {
+              <!-- "Recuperar plata" es la misma acción de cancelar, con la misma
+                   confirmación; solo cambian los textos para el pagador. -->
+              @if (puedeCancelar(c) || puedeRecuperar(c)) {
                 @if (estaConfirmandoCancelacion(c)) {
                   <div class="confirmacion-cancelacion" role="group" aria-label="Confirmar cancelación">
                     <p class="texto-confirmacion">
-                      <strong>¿Cancelar este compromiso?</strong>
-                      @if (c.estado === 'RESPALDADO') {
+                      @if (puedeRecuperar(c)) {
+                        <strong>¿Recuperar la plata?</strong>
                         <span class="nota-confirmacion-custodia">
-                          La plata vuelve a {{ nombre(c.pagador_id) }}.
+                          Vuelve a tu saldo y el compromiso queda cancelado.
                         </span>
+                      } @else {
+                        <strong>¿Cancelar este compromiso?</strong>
+                        @if (c.estado === 'RESPALDADO') {
+                          <span class="nota-confirmacion-custodia">
+                            La plata vuelve a {{ nombre(c.pagador_id) }}.
+                          </span>
+                        }
                       }
                     </p>
                     <div class="opciones-confirmacion">
@@ -196,7 +208,11 @@
                         [disabled]="ocupado()"
                         (click)="cancelar(c)"
                       >
-                        {{ procesando(c, 'cancelar') ? 'Cancelando…' : 'Sí, cancelar' }}
+                        @if (puedeRecuperar(c)) {
+                          {{ procesando(c, 'cancelar') ? 'Recuperando…' : 'Sí, recuperar' }}
+                        } @else {
+                          {{ procesando(c, 'cancelar') ? 'Cancelando…' : 'Sí, cancelar' }}
+                        }
                       </button>
                       <button
                         type="button"
@@ -208,6 +224,15 @@
                       </button>
                     </div>
                   </div>
+                } @else if (puedeRecuperar(c)) {
+                  <button
+                    type="button"
+                    class="boton-secundario"
+                    [disabled]="ocupado()"
+                    (click)="pedirConfirmacionCancelacion(c)"
+                  >
+                    Recuperar plata
+                  </button>
                 } @else {
                   <button
                     type="button"

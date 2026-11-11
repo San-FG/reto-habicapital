@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { Api } from '../api';
@@ -19,6 +19,13 @@ const FORMATO_FECHA = new Intl.DateTimeFormat('es-CO', {
   day: 'numeric',
   month: 'short',
   year: 'numeric',
+});
+
+const FORMATO_FECHA_HORA = new Intl.DateTimeFormat('es-CO', {
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
 });
 
 /** Compromisos de pago de la cuenta seleccionada: crear, ver y actuar sobre ellos. */
@@ -59,6 +66,15 @@ export class Compromisos {
   protected readonly accionEnCurso = signal<string | null>(null);
   // Solo una tarjeta puede pedir confirmación de cancelación a la vez.
   protected readonly confirmandoCancelacionId = signal<number | null>(null);
+
+  // Hora de la página, refrescada cada 30 segundos: así el botón "Recuperar
+  // plata" aparece solo cuando se cumple el plazo, sin recargar la página.
+  private readonly ahora = signal(Date.now());
+
+  constructor() {
+    const reloj = setInterval(() => this.ahora.set(Date.now()), 30_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(reloj));
+  }
 
   protected async crear(): Promise<void> {
     this.limpiarAvisoCrear();
@@ -129,9 +145,19 @@ export class Compromisos {
   }
 
   protected puedeCancelar(c: Compromiso): boolean {
-    // PENDIENTE: cualquiera de los dos. RESPALDADO: solo el beneficiario,
-    // porque el pagador no puede arrepentirse solo con la plata ya retenida.
+    // PENDIENTE: cualquiera de los dos. RESPALDADO: el beneficiario siempre;
+    // el pagador solo cuando se cumple el plazo de custodia (ver puedeRecuperar).
     return c.estado === 'PENDIENTE' || (c.estado === 'RESPALDADO' && !this.soyPagador(c));
+  }
+
+  /** ¿Ya pasaron las 24 horas de custodia? Compara la hora de la página con custodia_vence_en. */
+  protected plazoCumplido(c: Compromiso): boolean {
+    return c.custodia_vence_en !== null && this.ahora() >= new Date(c.custodia_vence_en).getTime();
+  }
+
+  /** El pagador puede pedir su plata de vuelta cuando la custodia cumplió el plazo. */
+  protected puedeRecuperar(c: Compromiso): boolean {
+    return c.estado === 'RESPALDADO' && this.soyPagador(c) && this.plazoCumplido(c);
   }
 
   protected nombre(id: number): string {
@@ -156,9 +182,12 @@ export class Compromisos {
         : `Esperando a que ${pagador} aparte la plata.`;
     }
     if (c.estado === 'RESPALDADO') {
-      return this.soyPagador(c)
-        ? `Tu plata está en custodia: ya salió de tu saldo y todavía no le llega a ${beneficiario}. Libérala cuando se cumpla el acuerdo.`
-        : `La plata ya está apartada para ti. Te llega cuando ${pagador} la libere.`;
+      if (!this.soyPagador(c)) {
+        return `La plata ya está apartada para ti. Te llega cuando ${pagador} la libere.`;
+      }
+      return this.plazoCumplido(c)
+        ? `Tu plata sigue en custodia y ya se cumplió el plazo. Puedes liberarla a ${beneficiario} o recuperarla.`
+        : `Tu plata está en custodia: ya salió de tu saldo y todavía no le llega a ${beneficiario}. Libérala cuando se cumpla el acuerdo.`;
     }
 
     const fecha = c.cerrado_en ? this.fechaNatural(new Date(c.cerrado_en)) : '';
@@ -168,6 +197,19 @@ export class Compromisos {
 
     const devolucion = c.respaldado_en ? ` La plata volvió a ${pagador}.` : '';
     return `${fecha ? `Cancelado el ${fecha}.` : 'Cancelado.'}${devolucion}`;
+  }
+
+  /** Línea pequeña de un RESPALDADO: cuánto dura la custodia y desde cuándo se puede recuperar. */
+  protected textoPlazo(c: Compromiso): string {
+    if (c.custodia_vence_en === null) {
+      return '';
+    }
+    // new Date() convierte la fecha UTC del backend a la hora local del navegador.
+    // Se quita el "de" de es-CO y el punto final de "a. m." para no cerrar la frase con dos puntos.
+    const desde = FORMATO_FECHA_HORA.format(new Date(c.custodia_vence_en))
+      .replace(/\sde\s/g, ' ')
+      .replace(/\.$/, '');
+    return `La custodia dura 24 horas. Si no se libera, ${this.nombre(c.pagador_id)} puede recuperar la plata desde el ${desde}.`;
   }
 
   protected etiquetaProgreso(c: Compromiso): string {

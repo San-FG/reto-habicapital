@@ -751,6 +751,11 @@ button:disabled {
   line-height: 22px;
 }
 
+/* Línea pequeña bajo el estado de un compromiso en custodia. */
+.nota-plazo {
+  margin-top: 4px;
+}
+
 .acciones-compromiso {
   display: flex;
   flex-wrap: wrap;

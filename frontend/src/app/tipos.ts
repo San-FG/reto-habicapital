@@ -36,6 +36,9 @@ export interface Compromiso {
   creado_en: string;
   respaldado_en: string | null;
   cerrado_en: string | null;
+  // Calculado por el backend: respaldado_en + 24 horas (UTC). Desde ese momento
+  // el pagador puede recuperar la plata. null si nunca se respaldó.
+  custodia_vence_en: string | null;
 }
 
 export interface Auditoria {
