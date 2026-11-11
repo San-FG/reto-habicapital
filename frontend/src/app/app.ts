@@ -1,10 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { Api } from './api';
 import { PieAuditoria } from './auditoria/pie-auditoria';
 import { Compromisos } from './compromisos/compromisos';
 import { Historial } from './historial/historial';
+import { PesosPipe } from './pesos-pipe';
 import { TarjetaSaldo } from './saldo/tarjeta-saldo';
 import { Auditoria, Compromiso, Cuenta, Movimiento } from './tipos';
 import { Transferencia } from './transferencia/transferencia';
@@ -17,12 +18,20 @@ import { mensajeDeError } from './utilidades';
  * backend (recargar). Los componentes hijos reciben esos datos, muestran un
  * formulario o una lista y avisan con (cambio) cuando hay que recargar.
  *
- * REGLA: aquí no se calcula plata. Ningún saldo se suma ni se resta en el
- * navegador; todo número que se ve es una respuesta del backend.
+ * REGLA: aquí no se calculan saldos. La única suma visual permitida es la
+ * custodia de compromisos RESPALDADOS; todo monto viene del backend.
  */
 @Component({
   selector: 'app-root',
-  imports: [FormsModule, TarjetaSaldo, Transferencia, Compromisos, Historial, PieAuditoria],
+  imports: [
+    FormsModule,
+    PesosPipe,
+    TarjetaSaldo,
+    Transferencia,
+    Compromisos,
+    Historial,
+    PieAuditoria,
+  ],
   templateUrl: './app.html',
 })
 export class App {
@@ -36,6 +45,26 @@ export class App {
   protected readonly auditoria = signal<Auditoria | null>(null);
   protected readonly cargado = signal(false); // ya llegó la primera respuesta
   protected readonly error = signal('');
+
+  // Estado exclusivamente visual: pestaña activa y formulario de cuenta nueva.
+  protected readonly pestana = signal<'cargar' | 'enviar'>('cargar');
+  protected readonly mostrarNuevaCuenta = signal(false);
+
+  /**
+   * Única suma permitida en el frontend: compromisos RESPALDADOS donde la
+   * persona seleccionada paga. Los montos vienen completos desde el backend.
+   */
+  protected readonly enCustodia = computed(() => {
+    const cuenta = this.yo();
+    if (!cuenta) {
+      return 0;
+    }
+    return this.compromisos()
+      .filter(
+        (compromiso) => compromiso.estado === 'RESPALDADO' && compromiso.pagador_id === cuenta.id,
+      )
+      .reduce((total, compromiso) => total + compromiso.monto, 0);
+  });
 
   // IDENTIDAD SIMULADA: no hay login. El selector "Soy:" decide a nombre de
   // quién se hacen las operaciones, igual que actor_id en el backend: quien
@@ -122,11 +151,23 @@ export class App {
     try {
       const nueva = await this.api.crearCuenta(nombre);
       this.nombreNuevo.set('');
+      this.mostrarNuevaCuenta.set(false);
       this.elegir(nueva.id); // se entra de una vez como la cuenta recién creada
     } catch (fallo) {
       this.errorCrear.set(mensajeDeError(fallo));
     } finally {
       this.creando.set(false);
     }
+  }
+
+  /** Iniciales para el avatar; no cambia ningún dato de la cuenta. */
+  protected iniciales(nombre: string): string {
+    return nombre
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((parte) => parte.charAt(0))
+      .join('')
+      .toUpperCase();
   }
 }

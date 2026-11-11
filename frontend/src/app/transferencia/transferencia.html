@@ -1,37 +1,34 @@
-<section class="tarjeta">
-  <h2>Transferir</h2>
+@if (otras().length === 0) {
+  <p class="vacio">Crea otra cuenta para poder enviarle plata.</p>
+} @else {
+  <form class="formulario" (ngSubmit)="transferir()">
+    <label for="destino-transferencia">Para</label>
+    <select id="destino-transferencia" name="destino" [(ngModel)]="destino">
+      <option [ngValue]="null" disabled>Elige una cuenta</option>
+      @for (c of otras(); track c.id) {
+        <option [ngValue]="c.id">{{ c.nombre }}</option>
+      }
+    </select>
 
-  @if (otras().length === 0) {
-    <p class="vacio">Crea otra cuenta para poder transferirle.</p>
-  } @else {
-    <form class="formulario" (ngSubmit)="transferir()">
-      <label>
-        <span>Para</span>
-        <select name="destino" [(ngModel)]="destino">
-          <option [ngValue]="null" disabled>Elige una cuenta</option>
-          @for (c of otras(); track c.id) {
-            <option [ngValue]="c.id">{{ c.nombre }}</option>
-          }
-        </select>
-      </label>
-      <label>
-        <span>Monto</span>
-        <app-campo-monto [(valor)]="monto" />
-      </label>
-      <label>
-        <span>Concepto (opcional)</span>
-        <input name="concepto" autocomplete="off" [(ngModel)]="concepto" />
-      </label>
-      <button type="submit" [disabled]="enviando()">
-        {{ enviando() ? 'Enviando…' : 'Transferir' }}
-      </button>
-    </form>
-  }
+    <label for="monto-transferencia">Monto</label>
+    <app-campo-monto
+      idCampo="monto-transferencia"
+      nombreCampo="montoTransferencia"
+      [(valor)]="monto"
+    />
 
-  @if (error()) {
-    <p class="mensaje error" role="alert">{{ error() }}</p>
-  }
-  @if (aviso()) {
-    <p class="mensaje exito" role="status">{{ aviso() }}</p>
-  }
-</section>
+    <label for="concepto-transferencia">Concepto (¿para qué es?)</label>
+    <input id="concepto-transferencia" name="concepto" autocomplete="off" [(ngModel)]="concepto" />
+
+    <button type="submit" [disabled]="enviando()">
+      {{ enviando() ? 'Enviando…' : 'Enviar' }}
+    </button>
+  </form>
+}
+
+@if (error()) {
+  <p class="mensaje error" role="alert">{{ error() }}</p>
+}
+@if (aviso()) {
+  <p class="mensaje exito" role="status">{{ aviso() }}</p>
+}

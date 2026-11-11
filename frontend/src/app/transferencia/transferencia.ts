@@ -30,8 +30,10 @@ export class Transferencia {
   protected readonly enviando = signal(false);
   protected readonly error = signal('');
   protected readonly aviso = signal('');
+  private temporizadorAviso: ReturnType<typeof setTimeout> | undefined;
 
   protected async transferir(): Promise<void> {
+    this.limpiarAviso();
     const destino = this.destino();
     const monto = aEnteroPositivo(this.monto());
     if (destino === null) {
@@ -57,18 +59,32 @@ export class Transferencia {
 
     this.enviando.set(true);
     this.error.set('');
-    this.aviso.set('');
     try {
       await this.api.transferir(datos, clave);
       this.intenciones.cumplida('transferir');
       this.monto.set('');
       this.concepto.set('');
-      this.aviso.set('Transferencia hecha.');
+      this.mostrarAviso('Transferencia hecha.');
     } catch (fallo) {
       this.error.set(mensajeDeError(fallo));
     } finally {
       this.enviando.set(false);
       this.cambio.emit();
     }
+  }
+
+  /** Los avisos positivos son temporales; los errores no se borran solos. */
+  private mostrarAviso(texto: string): void {
+    this.limpiarAviso();
+    this.aviso.set(texto);
+    this.temporizadorAviso = setTimeout(() => this.aviso.set(''), 4000);
+  }
+
+  private limpiarAviso(): void {
+    if (this.temporizadorAviso !== undefined) {
+      clearTimeout(this.temporizadorAviso);
+      this.temporizadorAviso = undefined;
+    }
+    this.aviso.set('');
   }
 }

@@ -7,25 +7,34 @@ import { Component, input, model } from '@angular/core';
  * plata aquí son enteros de pesos. El valor viaja como texto; quien lo usa
  * lo convierte con aEnteroPositivo() justo antes de enviarlo.
  *
- * Uso: <app-campo-monto [(valor)]="monto" />
+ * Uso: <app-campo-monto idCampo="monto-carga" [(valor)]="monto" />
  */
 @Component({
   selector: 'app-campo-monto',
   template: `
-    <input
-      type="text"
-      inputmode="numeric"
-      autocomplete="off"
-      placeholder="Ej.: 20000"
-      [value]="valor()"
-      [disabled]="deshabilitado()"
-      (input)="alEscribir($event)"
-    />
+    <span class="campo-con-prefijo">
+      <span class="prefijo-monto" aria-hidden="true">$</span>
+      <input
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        placeholder="0"
+        [id]="idCampo()"
+        [name]="nombreCampo()"
+        [attr.aria-describedby]="descripcionId()"
+        [value]="valor()"
+        [disabled]="deshabilitado()"
+        (input)="alEscribir($event)"
+      />
+    </span>
   `,
 })
 export class CampoMonto {
   readonly valor = model('');
   readonly deshabilitado = input(false);
+  readonly idCampo = input.required<string>();
+  readonly nombreCampo = input('monto');
+  readonly descripcionId = input<string | null>(null);
 
   protected alEscribir(evento: Event): void {
     const campo = evento.target as HTMLInputElement;

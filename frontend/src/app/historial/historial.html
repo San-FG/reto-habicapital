@@ -1,34 +1,47 @@
-<section class="tarjeta">
-  <h2>Historial de movimientos</h2>
+<section class="seccion-actividad" aria-labelledby="titulo-actividad">
+  <h2 id="titulo-actividad">Actividad</h2>
 
-  @if (movimientos().length === 0) {
-    <p class="vacio">Esta cuenta todavía no tiene movimientos.</p>
-  } @else {
-    <div class="con-desborde">
-      <table>
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Tipo</th>
-            <th>Contraparte</th>
-            <th>Concepto</th>
-            <th class="numero">Monto</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (m of movimientos(); track m.id) {
-            <tr>
-              <td>{{ m.creado_en | date: 'yyyy-MM-dd HH:mm' }}</td>
-              <td>{{ tipo(m) }}</td>
-              <td>{{ contraparte(m) }}</td>
-              <td>{{ m.concepto ?? '—' }}</td>
-              <td class="numero" [class.entrada]="entro(m)" [class.salida]="!entro(m)">
-                {{ entro(m) ? '+' : '−' }} {{ m.monto | pesos }}
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  }
+  <div class="tarjeta lista-actividad">
+    @if (movimientos().length === 0) {
+      <p class="vacio">Aún no hay movimientos en esta cuenta.</p>
+    } @else {
+      <div role="list">
+        @for (m of movimientos(); track m.id) {
+          <div class="fila-actividad" role="listitem">
+            @if (m.tipo === 'TRANSFERENCIA') {
+              <span class="avatar avatar-actividad" aria-hidden="true">{{ iniciales(m) }}</span>
+            } @else if (m.tipo === 'CARGA') {
+              <span class="icono-actividad icono-carga" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14" />
+                </svg>
+              </span>
+            } @else {
+              <span class="icono-actividad icono-custodia" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect x="5" y="10" width="14" height="10" rx="2" />
+                  <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                </svg>
+              </span>
+            }
+
+            <div class="detalle-actividad">
+              <p>{{ textoMovimiento(m) }}</p>
+              <p>
+                @if (m.concepto) {
+                  <span>{{ m.concepto }}</span
+                  ><span aria-hidden="true"> · </span>
+                }
+                <span>{{ fecha(m) }}</span>
+              </p>
+            </div>
+
+            <p class="monto-actividad" [class.entrada]="entro(m)" [class.salida]="!entro(m)">
+              {{ entro(m) ? '+' : '−' }} {{ m.monto | pesos }}
+            </p>
+          </div>
+        }
+      </div>
+    }
+  </div>
 </section>
