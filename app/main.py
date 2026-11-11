@@ -23,7 +23,7 @@ app = FastAPI(title="Billetera entre personas", lifespan=ciclo_de_vida)
 # ese origen: cualquier otra página web queda por fuera.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+    allow_origins=["http://localhost:4200", "https://lt2kcnjp-4200.use2.devtunnels.ms"],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Idempotency-Key"],
 )

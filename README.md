@@ -2,9 +2,10 @@
 
 Plata entre personas, sin perder un peso.
 
-Reto técnico de practicantes 2027, HabiCapital. Hecho por Manuel Santiago Figueroa.
+Reto técnico de practicantes 2027, HabiCapital. Hecho por Manuel Santiago Figueroa Gómez.
 
-Video de la demo: ⚠️ SANTI: pega aquí el link del video
+- Video de la demo: https://drive.google.com/file/d/1M52Of8WPQGRu-XiPhPFUIph33aveUps1/view
+- GitHub: https://github.com/San-FG
 
 ## Qué es
 
